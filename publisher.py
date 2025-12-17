@@ -1,6 +1,7 @@
 import time
 import json
 import random
+from datetime import datetime
 import paho.mqtt.client as mqtt
 
 # ==========================
@@ -27,76 +28,76 @@ def rand_enum(values):
 # ==========================
 def traffic_state():
     return {
-        "traffic_state": {
-            "location": {
-                "id": f"road-{random.randint(1,100)}",
-                "district": f"D{random.randint(1,10)}"
-            },
-            "t_metrics": {
-                "congestion_level": rand_enum(["LOW", "MODERATE", "HIGH", "CRITICAL"]),
-                "average_speed": rand_range(0, 200)
-            }
+        "event_type": "traffic_state",
+        "timestamp": datetime.now().isoformat(),
+        "location": {
+            "id": f"road-{random.randint(1,100)}",
+            "district": f"D{random.randint(1,10)}"
+        },
+        "t_metrics": {
+            "congestion_level": rand_enum(["LOW", "MODERATE", "HIGH", "CRITICAL"]),
+            "average_speed": rand_range(0, 200)
         }
     }
 
 def infrastructure_status():
     return {
-        "infrastructure_status": {
-            "infrastructure": {
-                "id": f"infra-{random.randint(1,50)}",
-                "type": rand_enum(["BRIDGE", "TUNNEL", "POWER_GRID"])
-            },
-            "status": rand_enum(["OPERATIONAL", "MAINTENANCE", "WARNING", "CRITICAL"]),
-            "i_metrics": {
-                "capacity_percentage": rand_range(0, 100),
-                "vibration_level": rand_range(0, 100)
-            }
+        "event_type": "infrastructure_status",
+        "timestamp": datetime.now().isoformat(),
+        "infrastructure": {
+            "id": f"infra-{random.randint(1,50)}",
+            "type": rand_enum(["BRIDGE", "TUNNEL", "POWER_GRID"])
+        },
+        "status": rand_enum(["OPERATIONAL", "MAINTENANCE", "WARNING", "CRITICAL"]),
+        "i_metrics": {
+            "capacity_percentage": rand_range(0, 100),
+            "vibration_level": rand_range(0, 100)
         }
     }
 
 def service_accessibility():
     return {
-        "service_accessibility": {
-            "service": {
-                "id": f"service-{random.randint(1,30)}",
-                "type": rand_enum(["HOSPITAL", "SCHOOL", "SUPERMARKET"])
-            },
-            "accessibility": {
-                "status": rand_enum(["AVAILABLE", "FULL", "CLOSED"]),
-                "estimated_access_time": rand_range(0, 300),
-                "capacity_percentage": rand_range(0, 100)
-            }
+        "event_type": "service_accessibility",
+        "timestamp": datetime.now().isoformat(),
+        "service": {
+            "id": f"service-{random.randint(1,30)}",
+            "type": rand_enum(["HOSPITAL", "SCHOOL", "SUPERMARKET"])
+        },
+        "accessibility": {
+            "status": rand_enum(["AVAILABLE", "FULL", "CLOSED"]),
+            "estimated_access_time": rand_range(0, 300),
+            "capacity_percentage": rand_range(0, 100)
         }
     }
 
 def environmental_conditions():
     return {
-        "environmental_conditions": {
-            "location": {
-                "id": f"station-{random.randint(1,20)}",
-                "district": f"D{random.randint(1,10)}"
-            },
-            "e_metrics": {
-                "rainfall_mm": rand_range(0, 1000),
-                "wind_speed_kmh": rand_range(0, 300),
-                "temperature_celsius": rand_range(-50, 60),
-                "humidity_percentage": rand_range(0, 100)
-            }
+        "event_type": "environmental_conditions",
+        "timestamp": datetime.now().isoformat(),
+        "location": {
+            "id": f"station-{random.randint(1,20)}",
+            "district": f"D{random.randint(1,10)}"
+        },
+        "e_metrics": {
+            "rainfall_mm": rand_range(0, 1000),
+            "wind_speed_kmh": rand_range(0, 300),
+            "temperature_celsius": rand_range(-50, 60),
+            "humidity_percentage": rand_range(0, 100)
         }
     }
 
 def system_health():
     return {
-        "system_health": {
-            "component": {
-                "id": f"comp-{random.randint(1,40)}",
-                "type": rand_enum(["API", "DB", "BROKER", "EDGE_NODE"])
-            },
-            "health": {
-                "status": rand_enum(["HEALTHY", "DEGRADED", "FAILURE"]),
-                "latency_ms": rand_range(0, 10000),
-                "error_rate_percentage": rand_range(0, 100)
-            }
+        "event_type": "system_health",
+        "timestamp": datetime.now().isoformat(),
+        "component": {
+            "id": f"comp-{random.randint(1,40)}",
+            "type": rand_enum(["API", "DB", "BROKER", "EDGE_NODE"])
+        },
+        "health": {
+            "status": rand_enum(["HEALTHY", "DEGRADED", "FAILURE"]),
+            "latency_ms": rand_range(0, 10000),
+            "error_rate_percentage": rand_range(0, 100)
         }
     }
 

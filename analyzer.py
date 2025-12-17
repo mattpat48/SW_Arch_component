@@ -1,32 +1,40 @@
-# analizzare i dati
-# pubblicare i risultati
-
-import mqttsub
-import mqttpub
-
 import json
+import paho.mqtt.client as mqtt
 from collections import deque
 import statistics
 
 from database_manager import DatabaseManager
 from data_structure import REQUIRED_FIELDS, REQUIRED_SUBFIELDS, DATA_CONSTRAINTS, ALERT_THRESHOLDS
 
-sensor_history = {} # Key: "event_type:id", Value: deque(maxlen=20)
+# ==========================
+# CONFIG
+# ==========================
+BROKER = "localhost"
+PORT = 1883
+CITY = "city"
 
-city_string = "city/"
+BASE_TOPIC_GET = f"UDiTE/{CITY}/data/get"
+BASE_TOPIC_POST = f"UDiTE/{CITY}/data/post"
+ALERT_TOPIC = f"UDiTE/{CITY}/alert"
 
-dataGet_string = "UDiTE/" + city_string + "data/get"
-dataPost_string = "UDiTE/" + city_string + "data/post"
-alert_string = "UDiTE/" + city_string + "alert"
+# Mapping: topic suffix -> source name for alerts
+TOPICS = {
+    "trafficSensor": "urbanViability",
+    "criticalInfrastructure": "criticalInfrastructure",
+    "essentialsAccessibility": "essentialsAccessibility",
+    "environmentQuality": "environmentQuality",
+    "metaSensors": "metaSensors"
+}
 
-urbanViability_string = "trafficSensor"
-criticalInfrastructure_string = "criticalInfrastructure"
-essentialsAccessibility_string = "essentialsAccessibility"
-environmentQuality_string = "environmentQuality"
-metaSensors_string = "metaSensors"
-
+# ==========================
+# STATE
+# ==========================
+sensor_history = {}  # Key: "event_type:id", Value: deque(maxlen=20)
 db = DatabaseManager()
 
+# ==========================
+# VALIDATION
+# ==========================
 def check_value(val, rule):
     if rule["type"] == "enum":
         if val not in rule["values"]:
@@ -38,6 +46,7 @@ def check_value(val, rule):
             return False, f"Value {val} out of range [{rule['min']}, {rule['max']}]"
     return True, ""
 
+
 def check_data_coherence(payload):
     event_type = payload["event_type"]
     if event_type not in DATA_CONSTRAINTS:
@@ -48,12 +57,12 @@ def check_data_coherence(payload):
     for field, rules in constraints.items():
         if field in payload:
             if isinstance(payload[field], dict):
-                 for subfield, subrules in rules.items():
-                     if subfield in payload[field]:
-                         val = payload[field][subfield]
-                         valid, msg = check_value(val, subrules)
-                         if not valid:
-                             return False, f"Field {field}.{subfield}: {msg}"
+                for subfield, subrules in rules.items():
+                    if subfield in payload[field]:
+                        val = payload[field][subfield]
+                        valid, msg = check_value(val, subrules)
+                        if not valid:
+                            return False, f"Field {field}.{subfield}: {msg}"
             else:
                 val = payload[field]
                 valid, msg = check_value(val, rules)
@@ -61,9 +70,10 @@ def check_data_coherence(payload):
                     return False, f"Field {field}: {msg}"
     return True, "Coherent"
 
-def validate_event_message(message):
+
+def validate_event_message(raw_payload):
     try:
-        payload = json.loads(message.payload.decode("utf-8"))
+        payload = json.loads(raw_payload)
     except json.JSONDecodeError:
         return False, "Invalid JSON format"
     
@@ -81,7 +91,7 @@ def validate_event_message(message):
         if field in REQUIRED_SUBFIELDS:
             for subfield in REQUIRED_SUBFIELDS[field]:
                 if subfield not in payload[field]:
-                    return False, f"Missing subfield '{subfield}' in field '{field}' for event_type '{event_type}'"
+                    return False, f"Missing subfield '{subfield}' in field '{field}'"
 
     is_coherent, coherence_msg = check_data_coherence(payload)
     if not is_coherent:
@@ -89,14 +99,21 @@ def validate_event_message(message):
 
     return True, payload
 
+# ==========================
+# ALERTING
+# ==========================
 def get_unique_id(payload):
     et = payload["event_type"]
-    if et == "traffic_state": return f"{et}:{payload['location']['id']}"
-    if et == "infrastructure_status": return f"{et}:{payload['infrastructure']['id']}"
-    if et == "service_accessibility": return f"{et}:{payload['service']['id']}"
-    if et == "environmental_conditions": return f"{et}:{payload['location']['id']}"
-    if et == "system_health": return f"{et}:{payload['component']['id']}"
-    return "unknown"
+    id_map = {
+        "traffic_state": lambda p: p["location"]["id"],
+        "infrastructure_status": lambda p: p["infrastructure"]["id"],
+        "service_accessibility": lambda p: p["service"]["id"],
+        "environmental_conditions": lambda p: p["location"]["id"],
+        "system_health": lambda p: p["component"]["id"]
+    }
+    getter = id_map.get(et)
+    return f"{et}:{getter(payload)}" if getter else "unknown"
+
 
 def check_alerts(payload):
     uid = get_unique_id(payload)
@@ -106,7 +123,7 @@ def check_alerts(payload):
     history = sensor_history[uid]
     history.append(payload)
 
-    # Wait for some data to accumulate to avoid false positives on startup
+    # Wait for some data to accumulate
     if len(history) < 5:
         return []
 
@@ -118,120 +135,98 @@ def check_alerts(payload):
     constraints = ALERT_THRESHOLDS[event_type]
 
     for field, rules in constraints.items():
-        if field in payload:
-            for subfield, rule in rules.items():
-                # Extract values from history for this specific subfield
-                # We safely ignore payloads in history that might miss this field (though validation prevents that)
-                values = [p[field][subfield] for p in history if field in p and subfield in p[field]]
-                
-                if not values: continue
+        if field not in payload:
+            continue
+            
+        for subfield, rule in rules.items():
+            values = [p[field][subfield] for p in history if field in p and subfield in p[field]]
+            
+            if not values:
+                continue
 
-                if rule["type"] == "enum":
-                    # Count how many times a "bad value" appeared in the history
-                    count = sum(1 for v in values if v in rule["bad_values"])
-                    if count >= rule["min_count"]:
-                        alerts.append(f"{subfield} is {values[-1]} (Critical frequency: {count}/{len(values)})")
-                
-                elif rule["type"] == "avg":
-                    avg_val = statistics.mean(values)
-                    limit = rule["limit"]
-                    if rule["op"] == "gt" and avg_val > limit:
-                        alerts.append(f"{subfield} average {avg_val:.2f} > {limit}")
-                    elif rule["op"] == "lt" and avg_val < limit:
-                        alerts.append(f"{subfield} average {avg_val:.2f} < {limit}")
+            if rule["type"] == "enum":
+                count = sum(1 for v in values if v in rule["bad_values"])
+                if count >= rule["min_count"]:
+                    alerts.append(f"{subfield} is {values[-1]} (Critical frequency: {count}/{len(values)})")
+            
+            elif rule["type"] == "avg":
+                avg_val = statistics.mean(values)
+                limit = rule["limit"]
+                if rule["op"] == "gt" and avg_val > limit:
+                    alerts.append(f"{subfield} average {avg_val:.2f} > {limit}")
+                elif rule["op"] == "lt" and avg_val < limit:
+                    alerts.append(f"{subfield} average {avg_val:.2f} < {limit}")
 
     return alerts
 
-def urbanViability_callback(client, userdata, message):
-    is_valid, result = validate_event_message(message)
+# ==========================
+# MQTT HANDLERS
+# ==========================
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to MQTT Broker")
+        # Subscribe to all topics
+        for topic_suffix in TOPICS.keys():
+            full_topic = f"{BASE_TOPIC_GET}/{topic_suffix}"
+            client.subscribe(full_topic)
+            print(f"Subscribed to: {full_topic}")
+    else:
+        print(f"Failed to connect, return code {rc}")
+
+
+def on_message(client, userdata, message):
+    # Extract topic suffix to identify source
+    topic = message.topic
+    topic_suffix = topic.split("/")[-1]
+    source = TOPICS.get(topic_suffix, "unknown")
+    
+    # Validate
+    raw_payload = message.payload.decode("utf-8")
+    is_valid, result = validate_event_message(raw_payload)
+    
     if not is_valid:
-        print(f"Invalid message received: {result}")
+        print(f"[{source}] Invalid message: {result}")
         return
     
+    # Save to DB
     db.save_event(result)
     
+    # Check for alerts
     alerts = check_alerts(result)
     if alerts:
-        alert_msg = {"timestamp": result["timestamp"], "type": "ALERT", "source": "urbanViability", "details": alerts}
-        mqttpub.publish(alert_string, json.dumps(alert_msg))
-
-    mqttpub.publish(dataPost_string + urbanViability_string, json.dumps(result))
-    return
-
-def criticalInfrastructure_callback(client, userdata, message):
-    is_valid, result = validate_event_message(message)
-    if not is_valid:
-        print(f"Invalid message received: {result}")
-        return
-
-    db.save_event(result)
-
-    alerts = check_alerts(result)
-    if alerts:
-        alert_msg = {"timestamp": result["timestamp"], "type": "ALERT", "source": "criticalInfrastructure", "details": alerts}
-        mqttpub.publish(alert_string, json.dumps(alert_msg))
-        
-    mqttpub.publish(dataPost_string + criticalInfrastructure_string, json.dumps(result))
-    return
-
-def essentialsAccessibility_callback(client, userdata, message):
-    is_valid, result = validate_event_message(message)
-    if not is_valid:
-        print(f"Invalid message received: {result}")
-        return
+        alert_msg = {
+            "timestamp": result["timestamp"],
+            "type": "ALERT",
+            "source": source,
+            "details": alerts
+        }
+        client.publish(ALERT_TOPIC, json.dumps(alert_msg))
+        print(f"[{source}] ALERT: {alerts}")
     
-    db.save_event(result)
+    # Republish validated data
+    client.publish(f"{BASE_TOPIC_POST}/{topic_suffix}", json.dumps(result))
+    print(f"[{source}] Processed and published")
 
-    alerts = check_alerts(result)
-    if alerts:
-        alert_msg = {"timestamp": result["timestamp"], "type": "ALERT", "source": "essentialsAccessibility", "details": alerts}
-        mqttpub.publish(alert_string, json.dumps(alert_msg))
-        
-    mqttpub.publish(dataPost_string + essentialsAccessibility_string, json.dumps(result))
-    return
-
-def environmentQuality_callback(client, userdata, message):
-    is_valid, result = validate_event_message(message)
-    if not is_valid:
-        print(f"Invalid message received: {result}")
-        return
+# ==========================
+# MAIN
+# ==========================
+def main():
+    client = mqtt.Client(client_id="udite-analyzer")
+    client.on_connect = on_connect
+    client.on_message = on_message
     
-    db.save_event(result)
-
-    alerts = check_alerts(result)
-    if alerts:
-        alert_msg = {"timestamp": result["timestamp"], "type": "ALERT", "source": "environmentQuality", "details": alerts}
-        mqttpub.publish(alert_string, json.dumps(alert_msg))
-        
-    mqttpub.publish(dataPost_string + environmentQuality_string, json.dumps(result))
-    return
-
-def metaSensors_callback(client, userdata, message):
-    is_valid, result = validate_event_message(message)
-    if not is_valid:
-        print(f"Invalid message received: {result}")
-        return
-    
-    db.save_event(result)
-
-    alerts = check_alerts(result)
-    if alerts:
-        alert_msg = {"timestamp": result["timestamp"], "type": "ALERT", "source": "metaSensors", "details": alerts}
-        mqttpub.publish(alert_string, json.dumps(alert_msg))
-        
-    mqttpub.publish(dataPost_string + metaSensors_string, json.dumps(result))
-    return
-
-def __main__():
-	mqttsub.subscribe(dataGet_string + urbanViability_string, urbanViability_callback)
-	mqttsub.subscribe(dataGet_string + criticalInfrastructure_string, criticalInfrastructure_callback)
-	mqttsub.subscribe(dataGet_string + essentialsAccessibility_string, essentialsAccessibility_callback)
-	mqttsub.subscribe(dataGet_string + environmentQuality_string, environmentQuality_callback)
-	mqttsub.subscribe(dataGet_string + metaSensors_string, metaSensors_callback)
-
-	mqttsub.loop_forever()
-
-	return
+    try:
+        print("UDiTE Analyzer starting...")
+        client.connect(BROKER, PORT, 60)
+        client.loop_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        db.close()
+        client.disconnect()
+    except Exception as e:
+        print(f"Connection error: {e}")
+        db.close()
 
 
-__main__()
+if __name__ == "__main__":
+    main()
