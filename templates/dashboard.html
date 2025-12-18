@@ -914,7 +914,7 @@
                 // Table
                 document.getElementById('trafficTable').innerHTML = data.data.slice(0, 50).map(d => `
                     <tr>
-                        <td>${d.timestamp || '-'}</td>
+                        <td>${formatTimestamp(d.timestamp)}</td>
                         <td>${d.location_id || '-'}</td>
                         <td>${d.location_district || '-'}</td>
                         <td><span class="badge badge-${(d.congestion_level || '').toLowerCase()}">${d.congestion_level || '-'}</span></td>
@@ -995,7 +995,7 @@
                 // Table
                 document.getElementById('infraTable').innerHTML = data.data.slice(0, 50).map(d => `
                     <tr>
-                        <td>${d.timestamp || '-'}</td>
+                        <td>${formatTimestamp(d.timestamp)}</td>
                         <td>${d.infrastructure_id || '-'}</td>
                         <td>${d.infrastructure_type || '-'}</td>
                         <td><span class="badge badge-${(d.status || '').toLowerCase()}">${d.status || '-'}</span></td>
@@ -1080,7 +1080,7 @@
                 // Table
                 document.getElementById('servicesTable').innerHTML = data.data.slice(0, 50).map(d => `
                     <tr>
-                        <td>${d.timestamp || '-'}</td>
+                        <td>${formatTimestamp(d.timestamp)}</td>
                         <td>${d.service_id || '-'}</td>
                         <td>${d.service_type || '-'}</td>
                         <td><span class="badge badge-${(d.accessibility_status || '').toLowerCase()}">${d.accessibility_status || '-'}</span></td>
@@ -1175,7 +1175,7 @@
                 // Table
                 document.getElementById('envTable').innerHTML = data.data.slice(0, 50).map(d => `
                     <tr>
-                        <td>${d.timestamp || '-'}</td>
+                        <td>${formatTimestamp(d.timestamp)}</td>
                         <td>${d.location_id || '-'}</td>
                         <td>${(d.temperature_celsius || 0).toFixed(1)}°C</td>
                         <td>${(d.humidity_percentage || 0).toFixed(1)}%</td>
@@ -1264,7 +1264,7 @@
                 // Table
                 document.getElementById('systemTable').innerHTML = data.data.slice(0, 50).map(d => `
                     <tr>
-                        <td>${d.timestamp || '-'}</td>
+                        <td>${formatTimestamp(d.timestamp)}</td>
                         <td>${d.component_id || '-'}</td>
                         <td>${d.component_type || '-'}</td>
                         <td><span class="badge badge-${(d.health_status || '').toLowerCase()}">${d.health_status || '-'}</span></td>
@@ -1286,6 +1286,22 @@
             loadTabData(activeTab);
             
             setTimeout(() => btn.classList.remove('loading'), 500);
+        }
+
+        function formatTimestamp(ts) {
+            if (!ts) return "-";
+
+            const date = new Date(ts);
+            if (isNaN(date)) return "-";
+
+            const dd = String(date.getDate()).padStart(2, "0");
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const yyyy = date.getFullYear();
+            const hh = String(date.getHours()).padStart(2, "0");
+            const min = String(date.getMinutes()).padStart(2, "0");
+            const ss = String(date.getSeconds()).padStart(2, "0");
+
+            return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
         }
 
         // Auto refresh every 10 seconds
