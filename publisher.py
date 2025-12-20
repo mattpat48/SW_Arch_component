@@ -108,7 +108,7 @@ client = mqtt.Client(client_id="udite-random-generator")
 client.connect(BROKER, PORT, 60)
 
 TOPICS = {
-    "trafficSensor": traffic_state,
+    "urbanViability": traffic_state,
     "criticalInfrastructure": infrastructure_status,
     "essentialsAccessibility": service_accessibility,
     "environmentQuality": environmental_conditions,
@@ -123,6 +123,7 @@ print("UDiTE MQTT generator started...")
 while True:
     for topic_suffix, generator in TOPICS.items():
         topic = f"{BASE_TOPIC}/{topic_suffix}"
+        print(f"Generating data for topic: {topic}")
         payload = generator()
 
         client.publish(topic, json.dumps(payload))

@@ -19,7 +19,7 @@ ALERT_TOPIC = f"UDiTE/{CITY}/alert"
 
 # Mapping: topic suffix -> source name for alerts
 TOPICS = {
-    "trafficSensor": "urbanViability",
+    "urbanViability": "urbanViability",
     "criticalInfrastructure": "criticalInfrastructure",
     "essentialsAccessibility": "essentialsAccessibility",
     "environmentQuality": "environmentQuality",
