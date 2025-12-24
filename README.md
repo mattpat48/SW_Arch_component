@@ -1,55 +1,81 @@
-# UDiTE - Analizzatore Dati Smart City
+# UDiTE Smart City Monitoring System
 
-Questo progetto implementa un componente backend per l'elaborazione, la validazione e l'archiviazione di dati provenienti da sensori IoT in un contesto di Smart City. Il sistema agisce come un middleware che ascolta i dati grezzi via MQTT, li analizza e genera allarmi intelligenti.
+## Overview
+UDiTE is a modular software architecture designed to simulate, analyze, and visualize urban data streams. It acts as a digital twin engine, processing data from various domains including traffic flow, critical infrastructure status, service accessibility, environmental quality, and internal system health.
 
-## Struttura del Progetto
+## Components
 
-Il sistema è composto da tre file principali:
+### 1. Data Generator (`publisher.py`)
+Acts as the source of information, simulating a network of IoT sensors distributed across the city. It generates synthetic data for five key categories:
+- **Urban Viability**: Traffic congestion levels and average speeds.
+- **Critical Infrastructure**: Status and metrics for bridges, tunnels, and power grids.
+- **Essentials Accessibility**: Availability and access times for hospitals, schools, and markets.re-write the readme in inge
+- **Environment Quality**: Weather conditions (rainfall, wind, temperature, humidity).
+- **Meta Sensors**: Health status of the monitoring components themselves.
 
-1.  **`analyzer.py`**: È il core dell'applicazione.
-    *   Gestisce la connessione MQTT (sottoscrizione ai topic dei sensori e pubblicazione dei risultati).
-    *   Coordina il flusso di validazione, salvataggio e analisi.
-    *   Implementa la logica a finestra mobile (sliding window) per la generazione degli allarmi.
+Data is published to the MQTT topic `UDiTE/city/data/get/#`.
 
-2.  **`database_manager.py`**: Gestisce la persistenza dei dati.
-    *   Crea e gestisce un database SQLite locale (`city_data.db`).
-    *   Dispone di tabelle separate per ogni tipologia di evento (`traffic_state`, `infrastructure_status`, ecc.).
-    *   Fornisce metodi per l'inserimento sicuro dei dati.
+### 2. Analyzer (`analyzer.py`)re-write the readme in inge
+The core processing unit that subscribes to raw sensor data. Its responsibilities include:
+- **Validation**: Ensures incoming JSON payloads contain all required fields and subfields defined in `data_structure.py`.
+- **Coherence Checking**: Verifies that data values fall within logical ranges and valid enumerations.
+- **Persistence**: Saves valid events into the SQLite database via `database_manager.py`.
+- **Alerting**: Maintains a sliding window history of sensor data to detect anomalies (e.g., sustained critical traffic, high vibration levels) and publishes alerts to `UDiTE/city/alert`.
+- **Republishing**: Publishes validated and processed data to `UDiTE/city/data/post/#`.
+re-write the readme in inge
+### 3. Dashboard (`dashboard.py`)
+A Flask-based web application that provides a user interface for the system. It connects to the database to visualize:
+- Real-time data tables.
+- Statistical aggregates (averages, min/max).
+- Status distribution charts.
+- System health overviews.
 
-3.  **`data_structure.py`**: Contiene la configurazione statica del sistema.
-    *   Definisce lo schema dei dati attesi (`REQUIRED_FIELDS`).
-    *   Imposta i vincoli di validità dei dati (`DATA_CONSTRAINTS`) come range numerici o liste di valori permessi (enum).
-    *   Definisce le soglie per l'attivazione degli allarmi (`ALERT_THRESHOLDS`).
+### 4. Database Manager (`database_manager.py`)
+A helper class that handles all interactions with the `city_data.db` SQLite database, including table creation and thread-safe data insertion.
 
-## Funzionalità Principali
+### 5. Orchestrator (`run_all.py`)
+A utility script designed to launch the Analyzer, Publisher, and Dashboard simultaneously as background processes. It manages their lifecycles, handles graceful shutdowns, and directs output to log files.
 
-### 1. Validazione e Coerenza dei Dati
-Ogni messaggio ricevuto viene sottoposto a due livelli di controllo:
-*   **Strutturale**: Verifica che il JSON sia valido e contenga tutti i campi e sottocampi obbligatori.
-*   **Semantico (Coerenza)**: Verifica che i valori siano logici (es. la velocità non può essere negativa, lo stato di un semaforo deve essere uno di quelli predefiniti). I dati incoerenti vengono scartati prima del salvataggio.
+## Architecture & Interaction
 
-### 2. Archiviazione (Database)
-I dati validi vengono salvati automaticamente nel database SQLite locale. Il sistema smista i dati nella tabella corretta in base al campo `event_type` del messaggio.
+1. **Ingestion**: The **Publisher** generates JSON events and sends them to the **MQTT Broker**.
+2. **Processing**: The **Analyzer** consumes these messages.
+   - If invalid: The message is logged and discarded.
+   - If valid: The message is stored in the **Database** and checked against **Alert Thresholds**.
+3. **Feedback**: If an anomaly is detected, the Analyzer publishes an alert back to the MQTT Broker.
+4. **Visualization**: The **Dashboard** queries the **Database** to present the current state of the city to the user via a web browser.
 
-### 3. Sistema di Allarmi Intelligente
-Il sistema non genera allarmi basandosi su singole letture (che potrebbero essere falsi positivi o picchi momentanei), ma utilizza un approccio storico:
-*   Mantiene in memoria una **coda degli ultimi 20 rilevamenti** per ogni singolo sensore (identificato univocamente).
-*   Gli allarmi scattano solo se l'analisi di questa cronologia supera certe soglie (es. media della velocità del vento troppo alta, o troppi stati di "errore" consecutivi).
+## Requirements
 
-## Flusso di Esecuzione
+- **Python 3.8+**
+- **MQTT Broker**: A broker running locally on port `1883` is required. Eclipse Mosquitto is recommended.
 
-1.  **Ricezione**: `analyzer.py` riceve un messaggio MQTT su un topic (es. `UDiTE/city/data/get/trafficSensor`).
-2.  **Validazione**:
-    *   Se il messaggio è malformato o incoerente, viene loggato l'errore e il flusso si interrompe.
-3.  **Salvataggio**: Se valido, il dato viene salvato nel DB tramite `DatabaseManager`.
-4.  **Analisi**:
-    *   Il dato viene aggiunto alla cronologia specifica di quel sensore.
-    *   La funzione `check_alerts` calcola statistiche (medie, conteggi) sulla cronologia.
-5.  **Pubblicazione**:
-    *   Se vengono rilevati problemi, viene pubblicato un messaggio di allerta sul topic `UDiTE/city/alert`.
-    *   Il dato validato viene ri-pubblicato sul topic di post (es. `UDiTE/city/data/post/trafficSensor`) per essere consumato da altri servizi.
+### Python Dependencies
+Install the necessary libraries using pip:
 
-## Requisiti
+```bash
+pip install paho-mqtt flask
+```
 
-*   Python 3.x
-*   Librerie: `paho-mqtt` (o wrapper `mqttsub`/`mqttpub` inclusi), `sqlite3` (standard library).
+## How to Run
+
+1. **Start the MQTT Broker**:
+   Ensure your MQTT broker is running on localhost:1883.
+   ```bash
+   # Example for Mosquitto
+   mosquitto
+   ```
+
+2. **Start the System**:
+   Run the orchestrator script to start all components.
+   ```bash
+   python run_all.py
+   ```
+   This will spawn the analyzer, publisher, and dashboard. Logs for each process are stored in the `logs/` directory created automatically.
+
+3. **Access the Dashboard**:
+   Open your web browser and navigate to:
+   http://localhost:5000
+
+4. **Stop the System**:
+   Press `Ctrl+C` in the terminal running `run_all.py`. The script will catch the signal and terminate all child processes gracefully.
