@@ -24,6 +24,14 @@ def start_processes(scripts, logs_dir):
     return procs
 
 
+def print_browser_links():
+    print("\n" + "=" * 50)
+    print("🌐 BROWSER LINKS:")
+    print("=" * 50)
+    print("📊 Dashboard:  http://localhost:5000")
+    print("=" * 50 + "\n")
+
+
 def stop_processes(procs, timeout=5.0):
     for p, f, s in procs:
         if p.poll() is None:
@@ -54,6 +62,10 @@ def stop_processes(procs, timeout=5.0):
 def main():
     logs_dir = ensure_logs_dir()
     procs = start_processes(SCRIPTS, logs_dir)
+    
+    # Stampa i link del browser dopo l'avvio
+    time.sleep(1)  # Attendi un secondo per permettere ai server di avviarsi
+    print_browser_links()
 
     def _handler(signum, frame):
         print("Received exit signal, shutting down children...")
