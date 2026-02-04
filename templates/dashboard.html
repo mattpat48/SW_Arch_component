@@ -429,6 +429,168 @@
             transform: none;
         }
 
+        .simulation-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .simulation-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .simulation-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .simulation-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .simulation-modal.active {
+            display: flex;
+        }
+
+        .simulation-modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 800px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .simulation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .simulation-header h2 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .simulation-result {
+            margin-top: 20px;
+        }
+
+        .simulation-timing {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .timing-card {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .timing-value {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+        }
+
+        .timing-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .emergency-list {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .emergency-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid var(--accent-red);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .alternative-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 3px solid var(--accent-green);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .verification-box {
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .verification-box.passed {
+            background: rgba(34, 197, 94, 0.15);
+            border: 2px solid var(--accent-green);
+        }
+
+        .verification-box.failed {
+            background: rgba(239, 68, 68, 0.15);
+            border: 2px solid var(--accent-red);
+        }
+
+        .verification-status {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .verification-status.passed {
+            color: var(--accent-green);
+        }
+
+        .verification-status.failed {
+            color: var(--accent-red);
+        }
+
         .loadtest-modal {
             display: none;
             position: fixed;
@@ -645,6 +807,9 @@
                 <button class="loadtest-btn" id="loadtestBtn" onclick="openLoadTestModal()">
                     <span>🚀</span> Load Test
                 </button>
+                <button class="simulation-btn" id="simulationBtn" onclick="openSimulationModal()">
+                    <span>🚧</span> Simulation Test
+                </button>
             </div>
         </header>
 
@@ -697,6 +862,45 @@
                 </div>
 
                 <div id="loadtestResult" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Simulation Test Modal -->
+        <div class="simulation-modal" id="simulationModal">
+            <div class="simulation-modal-content">
+                <div class="simulation-header">
+                    <h2>🚧 Simulation Test - Verifica Delay</h2>
+                    <button class="close-modal" onclick="closeSimulationModal()">&times;</button>
+                </div>
+                
+                <div id="simulationConfig">
+                    <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                        Questo test simula un'<strong>emergenza stradale</strong> (chiusura/congestione critica) 
+                        e misura il tempo necessario per:
+                    </p>
+                    <ul style="color: var(--text-secondary); margin-bottom: 20px; padding-left: 20px;">
+                        <li>Generare gli eventi di emergenza</li>
+                        <li>Pubblicare gli alert via MQTT</li>
+                        <li>Calcolare i percorsi alternativi</li>
+                        <li>Generare la risposta per gli utenti</li>
+                    </ul>
+                    <p style="color: var(--accent-cyan); margin-bottom: 20px;">
+                        <strong>Requisito:</strong> Tempo totale &le; 10 secondi (target: 5 secondi)
+                    </p>
+                    <button class="simulation-btn" style="width: 100%;" onclick="runSimulation()">
+                        <span>▶️</span> Avvia Simulation Test
+                    </button>
+                </div>
+
+                <div id="simulationLoading" style="display: none; text-align: center; padding: 40px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🚨</div>
+                    <p style="color: var(--text-secondary);">Simulazione emergenza in corso...</p>
+                    <div class="progress-bar-container" style="margin-top: 20px;">
+                        <div class="progress-bar" style="width: 100%; animation: pulse 1s infinite;"></div>
+                    </div>
+                </div>
+
+                <div id="simulationResult" style="display: none;"></div>
             </div>
         </div>
 
@@ -1701,6 +1905,157 @@
         document.getElementById('loadtestModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closeLoadTestModal();
+            }
+        });
+
+        // ==========================
+        // SIMULATION TEST FUNCTIONS
+        // ==========================
+        function openSimulationModal() {
+            document.getElementById('simulationModal').classList.add('active');
+            // Reset view
+            document.getElementById('simulationConfig').style.display = 'block';
+            document.getElementById('simulationLoading').style.display = 'none';
+            document.getElementById('simulationResult').style.display = 'none';
+        }
+
+        function closeSimulationModal() {
+            document.getElementById('simulationModal').classList.remove('active');
+        }
+
+        async function runSimulation() {
+            document.getElementById('simulationConfig').style.display = 'none';
+            document.getElementById('simulationLoading').style.display = 'block';
+            document.getElementById('simulationResult').style.display = 'none';
+            document.getElementById('simulationBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/simulation/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+
+                document.getElementById('simulationLoading').style.display = 'none';
+                document.getElementById('simulationBtn').disabled = false;
+
+                if (data.success) {
+                    showSimulationResult(data.result);
+                } else {
+                    alert('Errore: ' + data.message);
+                    document.getElementById('simulationConfig').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error running simulation:', error);
+                alert('Errore di connessione');
+                document.getElementById('simulationLoading').style.display = 'none';
+                document.getElementById('simulationConfig').style.display = 'block';
+                document.getElementById('simulationBtn').disabled = false;
+            }
+        }
+
+        function showSimulationResult(result) {
+            const passed = result.verification.requirement_met;
+            const statusClass = passed ? 'passed' : 'failed';
+            const statusIcon = passed ? '✅' : '❌';
+
+            // Build emergency events HTML
+            let emergencyHtml = '';
+            result.emergency.events.forEach(e => {
+                emergencyHtml += `
+                    <div class="emergency-item">
+                        <span>🚨</span>
+                        <div>
+                            <strong>${e.road_id}</strong> (${e.district})
+                            <br><small style="color: var(--text-secondary);">${e.previous_status} → CRITICAL</small>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Build alternatives HTML
+            let alternativesHtml = '';
+            result.alternatives.routes.forEach(alt => {
+                alternativesHtml += `
+                    <div class="alternative-item">
+                        <span>✅</span>
+                        <div>
+                            <strong>${alt.alternative_road}</strong> (${alt.alternative_district})
+                            <br><small style="color: var(--text-secondary);">Per: ${alt.for_blocked_road} | ${alt.congestion_level} | ${alt.average_speed} km/h</small>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const html = `
+                <div class="simulation-result">
+                    <!-- Verification Status -->
+                    <div class="verification-box ${statusClass}">
+                        <div class="verification-status ${statusClass}">
+                            ${statusIcon} REQUISITO ${passed ? 'SODDISFATTO' : 'NON SODDISFATTO'}
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 700;">
+                            ${result.timing.total_seconds.toFixed(3)}s
+                        </div>
+                        <div style="color: var(--text-secondary); margin-top: 5px;">
+                            Limite massimo: ${result.verification.max_allowed_delay_s}s | Margine: ${result.verification.margin_ms.toFixed(0)}ms
+                        </div>
+                    </div>
+
+                    <!-- Timing Breakdown -->
+                    <h3 style="margin-top: 25px; margin-bottom: 15px;">⏱️ Breakdown Tempi</h3>
+                    <div class="simulation-timing">
+                        <div class="timing-card">
+                            <div class="timing-value">${result.timing.breakdown.event_generation_ms.toFixed(2)}</div>
+                            <div class="timing-label">Generazione Eventi (ms)</div>
+                        </div>
+                        <div class="timing-card">
+                            <div class="timing-value">${result.timing.breakdown.mqtt_publish_ms.toFixed(2)}</div>
+                            <div class="timing-label">Pubblicazione MQTT (ms)</div>
+                        </div>
+                        <div class="timing-card">
+                            <div class="timing-value">${result.timing.breakdown.route_calculation_ms.toFixed(2)}</div>
+                            <div class="timing-label">Calcolo Percorsi (ms)</div>
+                        </div>
+                        <div class="timing-card">
+                            <div class="timing-value">${result.timing.breakdown.response_generation_ms.toFixed(2)}</div>
+                            <div class="timing-label">Generazione Risposta (ms)</div>
+                        </div>
+                    </div>
+
+                    <!-- Emergency Events -->
+                    <h3 style="margin-top: 25px; margin-bottom: 15px;">🚨 Strade in Emergenza (${result.emergency.roads_affected})</h3>
+                    <div class="emergency-list">
+                        ${emergencyHtml}
+                    </div>
+
+                    <!-- Alternative Routes -->
+                    <h3 style="margin-top: 25px; margin-bottom: 15px;">✅ Percorsi Alternativi Suggeriti (${result.alternatives.routes_found})</h3>
+                    <div class="emergency-list">
+                        ${alternativesHtml || '<p style="color: var(--text-secondary);">Nessuna alternativa trovata</p>'}
+                    </div>
+
+                    <button class="simulation-btn" style="width: 100%; margin-top: 20px;" onclick="resetSimulation()">
+                        <span>🔄</span> Nuovo Test
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('simulationResult').innerHTML = html;
+            document.getElementById('simulationResult').style.display = 'block';
+        }
+
+        function resetSimulation() {
+            document.getElementById('simulationConfig').style.display = 'block';
+            document.getElementById('simulationLoading').style.display = 'none';
+            document.getElementById('simulationResult').style.display = 'none';
+        }
+
+        // Close simulation modal on outside click
+        document.getElementById('simulationModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSimulationModal();
             }
         });
     </script>

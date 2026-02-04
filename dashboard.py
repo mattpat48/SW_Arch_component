@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import sqlite3
 from datetime import datetime
 import load_test
+import simulation_test
 
 app = Flask(__name__)
 DB_NAME = "city_data.db"
@@ -172,6 +173,42 @@ def loadtest_result():
             'has_result': False,
             'message': 'Nessun risultato disponibile'
         })
+
+
+# ==========================
+# SIMULATION TEST ENDPOINTS
+# ==========================
+@app.route('/api/simulation/start', methods=['POST'])
+def start_simulation():
+    """Avvia la simulazione di impatto (chiusura strade)"""
+    if simulation_test.is_simulation_running():
+        return jsonify({
+            'success': False,
+            'message': 'Una simulazione è già in esecuzione'
+        }), 400
+    
+    data = request.get_json() or {}
+    num_roads = data.get('num_roads', None)  # None = random 2-5
+    
+    # Esegui sincronamente per avere il risultato immediato
+    try:
+        result = simulation_test.run_impact_simulation(num_roads)
+        return jsonify({
+            'success': True,
+            'result': result.to_dict()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/simulation/status')
+def simulation_status():
+    """Ottieni lo stato corrente della simulazione"""
+    state = simulation_test.get_simulation_state()
+    return jsonify(state)
 
 
 if __name__ == '__main__':

@@ -24,6 +24,7 @@ BASE_TOPIC = "UDiTE/city/data/get"
 # = ~1667 eventi/secondo
 DEFAULT_TARGET_EVENTS = 100000
 DEFAULT_DURATION_SECONDS = 60  # 1 minuto
+NUM_SENDER_THREADS = 8  # Thread paralleli per invio
 
 # ==========================
 # DATA CLASSES
