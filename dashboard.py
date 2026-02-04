@@ -134,7 +134,7 @@ def start_loadtest():
     
     # Parametri opzionali dal body
     data = request.get_json() or {}
-    target_events = data.get('target_events', 1000)
+    target_events = data.get('target_events', 100000)
     duration_seconds = data.get('duration_seconds', 60)  # 1 minuto
     
     success = load_test.start_load_test_async(target_events, duration_seconds)
@@ -175,4 +175,4 @@ def loadtest_result():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, use_reloader=False)

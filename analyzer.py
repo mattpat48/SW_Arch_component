@@ -2,6 +2,8 @@ import json
 import paho.mqtt.client as mqtt
 from collections import deque
 import statistics
+import threading
+import queue
 
 from database_manager import DatabaseManager
 from data_structure import REQUIRED_FIELDS, REQUIRED_SUBFIELDS, DATA_CONSTRAINTS, ALERT_THRESHOLDS
@@ -17,6 +19,10 @@ BASE_TOPIC_GET = f"UDiTE/{CITY}/data/get"
 BASE_TOPIC_POST = f"UDiTE/{CITY}/data/post"
 ALERT_TOPIC = f"UDiTE/{CITY}/alert"
 
+# Worker threads for processing
+NUM_WORKERS = 4
+message_queue = queue.Queue(maxsize=10000)
+
 # Mapping: topic suffix -> source name for alerts
 TOPICS = {
     "urbanViability": "urbanViability",
@@ -30,7 +36,9 @@ TOPICS = {
 # STATE
 # ==========================
 sensor_history = {}  # Key: "event_type:id", Value: deque(maxlen=20)
+sensor_history_lock = threading.Lock()
 db = DatabaseManager()
+mqtt_client = None  # Will be set in main()
 
 # ==========================
 # VALIDATION
@@ -117,15 +125,20 @@ def get_unique_id(payload):
 
 def check_alerts(payload):
     uid = get_unique_id(payload)
-    if uid not in sensor_history:
-        sensor_history[uid] = deque(maxlen=20)
     
-    history = sensor_history[uid]
-    history.append(payload)
+    with sensor_history_lock:
+        if uid not in sensor_history:
+            sensor_history[uid] = deque(maxlen=20)
+        
+        history = sensor_history[uid]
+        history.append(payload)
 
-    # Wait for some data to accumulate
-    if len(history) < 5:
-        return []
+        # Wait for some data to accumulate
+        if len(history) < 5:
+            return []
+        
+        # Copy history for processing outside lock
+        history_copy = list(history)
 
     event_type = payload["event_type"]
     if event_type not in ALERT_THRESHOLDS:
@@ -139,7 +152,7 @@ def check_alerts(payload):
             continue
             
         for subfield, rule in rules.items():
-            values = [p[field][subfield] for p in history if field in p and subfield in p[field]]
+            values = [p[field][subfield] for p in history_copy if field in p and subfield in p[field]]
             
             if not values:
                 continue
@@ -175,43 +188,74 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, message):
-    # Extract topic suffix to identify source
-    topic = message.topic
+    """Fast callback - just queue the message for async processing"""
+    try:
+        message_queue.put_nowait((message.topic, message.payload))
+    except queue.Full:
+        pass  # Drop message if queue is full (backpressure)
+
+
+def process_message(topic, payload_bytes):
+    """Process a single message (runs in worker thread)"""
+    global mqtt_client
+    
     topic_suffix = topic.split("/")[-1]
     source = TOPICS.get(topic_suffix, "unknown")
     
     # Validate
-    raw_payload = message.payload.decode("utf-8")
+    raw_payload = payload_bytes.decode("utf-8")
     is_valid, result = validate_event_message(raw_payload)
     
     if not is_valid:
-        print(f"[{source}] Invalid message: {result}")
         return
     
-    # Save to DB
+    # Save to DB (now with batch commits)
     db.save_event(result)
     
     # Check for alerts
     alerts = check_alerts(result)
-    if alerts:
+    if alerts and mqtt_client:
         alert_msg = {
             "timestamp": result["timestamp"],
             "type": "ALERT",
             "source": source,
             "details": alerts
         }
-        client.publish(ALERT_TOPIC, json.dumps(alert_msg))
-        print(f"[{source}] ALERT: {alerts}")
+        mqtt_client.publish(ALERT_TOPIC, json.dumps(alert_msg))
     
     # Republish validated data
-    client.publish(f"{BASE_TOPIC_POST}/{topic_suffix}", json.dumps(result))
-    print(f"[{source}] Processed and published")
+    if mqtt_client:
+        mqtt_client.publish(f"{BASE_TOPIC_POST}/{topic_suffix}", json.dumps(result))
+
+
+def worker():
+    """Worker thread that processes messages from the queue"""
+    while True:
+        try:
+            topic, payload = message_queue.get(timeout=1.0)
+            process_message(topic, payload)
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"Worker error: {e}")
+
 
 # ==========================
 # MAIN
 # ==========================
 def main():
+    global mqtt_client
+    
+    # Start worker threads
+    workers = []
+    for i in range(NUM_WORKERS):
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        workers.append(t)
+    print(f"Started {NUM_WORKERS} worker threads")
+    
     client = mqtt.Client(client_id="udite-analyzer")
+    mqtt_client = client
     client.on_connect = on_connect
     client.on_message = on_message
     

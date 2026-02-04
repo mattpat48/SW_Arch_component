@@ -21,8 +21,8 @@ PORT = 1883
 BASE_TOPIC = "UDiTE/city/data/get"
 
 # Test parameters: 100.000 eventi in 1 minuto (60 secondi)
-# = ~1667 eventi/secondo0
-DEFAULT_TARGET_EVENTS = 1000
+# = ~1667 eventi/secondo
+DEFAULT_TARGET_EVENTS = 100000
 DEFAULT_DURATION_SECONDS = 60  # 1 minuto
 
 # ==========================
@@ -234,8 +234,11 @@ def run_load_test(
     
     # Calcola rate target
     events_per_second = target_events / duration_seconds
-    batch_size = max(1, int(events_per_second / 10))  # 10 batch al secondo
-    sleep_interval = 0.1  # 100ms tra i batch
+    # Batch più grandi per alto throughput, sleep minimo
+    batch_size = max(10, int(events_per_second / 100) + 1)
+    # Per alti volumi, niente sleep - invia il più veloce possibile
+    use_throttle = events_per_second < 500
+    sleep_interval = 0.01 if use_throttle else 0.001  # 1ms per alto throughput
     
     # Connessione MQTT
     client = mqtt.Client(client_id=f"udite-loadtest-{int(time.time())}")
@@ -272,9 +275,18 @@ def run_load_test(
     print(f"Rate target: {events_per_second:.1f} eventi/secondo")
     print(f"{'='*60}\n")
     
+    # Pre-genera cache di payload per massimo throughput
+    print("Pre-generazione cache payload...")
+    payload_cache = {}
+    cache_size = min(1000, target_events // 5)  # Cache di payload pre-generati
+    for topic_suffix, generator in GENERATORS:
+        payload_cache[topic_suffix] = [json.dumps(generator()) for _ in range(cache_size)]
+    print(f"Cache generata: {cache_size} payload per tipo")
+    
     try:
         generator_index = 0
         last_progress_update = 0
+        cache_indices = {topic_suffix: 0 for topic_suffix, _ in GENERATORS}
         
         while True:
             current_time = time.time()
@@ -290,14 +302,18 @@ def run_load_test(
                     break
                 
                 # Seleziona generatore (round-robin)
-                topic_suffix, generator = GENERATORS[generator_index % len(GENERATORS)]
+                topic_suffix, _ = GENERATORS[generator_index % len(GENERATORS)]
                 generator_index += 1
                 
                 topic = f"{BASE_TOPIC}/{topic_suffix}"
-                payload = generator()
+                
+                # Usa payload dalla cache (ciclico)
+                cache_idx = cache_indices[topic_suffix]
+                payload_str = payload_cache[topic_suffix][cache_idx % cache_size]
+                cache_indices[topic_suffix] = cache_idx + 1
                 
                 try:
-                    result = client.publish(topic, json.dumps(payload))
+                    result = client.publish(topic, payload_str)
                     if result.rc == mqtt.MQTT_ERR_SUCCESS:
                         events_sent += 1
                         events_by_type[topic_suffix] += 1
