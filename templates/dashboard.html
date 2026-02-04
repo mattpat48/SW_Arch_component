@@ -402,6 +402,185 @@
             pointer-events: none;
         }
 
+        .loadtest-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--accent-yellow), var(--accent-red));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .loadtest-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4);
+        }
+
+        .loadtest-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loadtest-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loadtest-modal.active {
+            display: flex;
+        }
+
+        .loadtest-modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .loadtest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .loadtest-header h2 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--accent-yellow), var(--accent-red));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .close-modal:hover {
+            color: var(--text-primary);
+        }
+
+        .loadtest-progress {
+            margin: 20px 0;
+        }
+
+        .progress-bar-container {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, var(--accent-yellow), var(--accent-red));
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .loadtest-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .loadtest-stat {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .loadtest-stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+
+        .loadtest-stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .loadtest-result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+        }
+
+        .loadtest-result.passed {
+            border: 2px solid var(--accent-green);
+        }
+
+        .loadtest-result.failed {
+            border: 2px solid var(--accent-red);
+        }
+
+        .loadtest-result-status {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .loadtest-result-status.passed {
+            color: var(--accent-green);
+        }
+
+        .loadtest-result-status.failed {
+            color: var(--accent-red);
+        }
+
+        .loadtest-result-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .loadtest-result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: var(--bg-card);
+            border-radius: 6px;
+        }
+
+        .loadtest-result-item span:first-child {
+            color: var(--text-secondary);
+        }
+
+        .loadtest-result-item span:last-child {
+            font-weight: 600;
+        }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -463,8 +642,63 @@
                 <button class="refresh-btn" onclick="refreshAllData()">
                     <span>🔄</span> Aggiorna
                 </button>
+                <button class="loadtest-btn" id="loadtestBtn" onclick="openLoadTestModal()">
+                    <span>🚀</span> Load Test
+                </button>
             </div>
         </header>
+
+        <!-- Load Test Modal -->
+        <div class="loadtest-modal" id="loadtestModal">
+            <div class="loadtest-modal-content">
+                <div class="loadtest-header">
+                    <h2>🚀 Load Test - Verifica Scalabilità</h2>
+                    <button class="close-modal" onclick="closeLoadTestModal()">&times;</button>
+                </div>
+                
+                <div id="loadtestConfig">
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        Questo test invierà <strong>~100.000 eventi</strong> in <strong>1 minuto</strong> 
+                        per verificare che il sistema supporti il requisito di 100.000 eventi/minuto.
+                    </p>
+                    <button class="loadtest-btn" style="width: 100%;" onclick="startLoadTest()">
+                        <span>▶️</span> Avvia Load Test
+                    </button>
+                </div>
+
+                <div id="loadtestRunning" style="display: none;">
+                    <div class="loadtest-progress">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="loadtestProgressBar"></div>
+                        </div>
+                        <div style="text-align: center; color: var(--text-secondary);">
+                            <span id="loadtestProgressText">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="loadtest-stats">
+                        <div class="loadtest-stat">
+                            <div class="loadtest-stat-value" id="ltEventsSent">0</div>
+                            <div class="loadtest-stat-label">Eventi Inviati</div>
+                        </div>
+                        <div class="loadtest-stat">
+                            <div class="loadtest-stat-value" id="ltCurrentRate">0</div>
+                            <div class="loadtest-stat-label">Eventi/Secondo</div>
+                        </div>
+                        <div class="loadtest-stat">
+                            <div class="loadtest-stat-value" id="ltElapsed">0s</div>
+                            <div class="loadtest-stat-label">Tempo Trascorso</div>
+                        </div>
+                        <div class="loadtest-stat">
+                            <div class="loadtest-stat-value" id="ltErrors">0</div>
+                            <div class="loadtest-stat-label">Errori</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="loadtestResult" style="display: none;"></div>
+            </div>
+        </div>
 
         <nav class="nav-tabs">
             <button class="nav-tab active" onclick="showTab('overview')">📊 Overview</button>
@@ -1309,6 +1543,166 @@
 
         // Initial load
         loadOverview();
+
+        // ==========================
+        // LOAD TEST FUNCTIONS
+        // ==========================
+        let loadTestInterval = null;
+
+        function openLoadTestModal() {
+            document.getElementById('loadtestModal').classList.add('active');
+            checkLoadTestStatus();
+        }
+
+        function closeLoadTestModal() {
+            document.getElementById('loadtestModal').classList.remove('active');
+        }
+
+        async function startLoadTest() {
+            try {
+                const response = await fetch('/api/loadtest/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_events: 1000,
+                        duration_seconds: 60
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('loadtestConfig').style.display = 'none';
+                    document.getElementById('loadtestRunning').style.display = 'block';
+                    document.getElementById('loadtestResult').style.display = 'none';
+                    document.getElementById('loadtestBtn').disabled = true;
+                    
+                    // Start polling for status
+                    loadTestInterval = setInterval(pollLoadTestStatus, 500);
+                } else {
+                    alert('Errore: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error starting load test:', error);
+                alert('Errore di connessione');
+            }
+        }
+
+        async function pollLoadTestStatus() {
+            try {
+                const response = await fetch('/api/loadtest/status');
+                const state = await response.json();
+                
+                // Update progress
+                document.getElementById('loadtestProgressBar').style.width = state.progress + '%';
+                document.getElementById('loadtestProgressText').textContent = state.progress.toFixed(1) + '%';
+                document.getElementById('ltEventsSent').textContent = state.events_sent.toLocaleString();
+                document.getElementById('ltCurrentRate').textContent = state.current_rate.toFixed(1);
+                document.getElementById('ltElapsed').textContent = state.elapsed_seconds.toFixed(0) + 's';
+                document.getElementById('ltErrors').textContent = state.errors;
+                
+                // Check if test completed
+                if (!state.is_running && state.result) {
+                    clearInterval(loadTestInterval);
+                    document.getElementById('loadtestBtn').disabled = false;
+                    showLoadTestResult(state.result);
+                }
+            } catch (error) {
+                console.error('Error polling status:', error);
+            }
+        }
+
+        async function checkLoadTestStatus() {
+            try {
+                const response = await fetch('/api/loadtest/status');
+                const state = await response.json();
+                
+                if (state.is_running) {
+                    document.getElementById('loadtestConfig').style.display = 'none';
+                    document.getElementById('loadtestRunning').style.display = 'block';
+                    document.getElementById('loadtestResult').style.display = 'none';
+                    document.getElementById('loadtestBtn').disabled = true;
+                    loadTestInterval = setInterval(pollLoadTestStatus, 500);
+                } else if (state.result) {
+                    document.getElementById('loadtestConfig').style.display = 'none';
+                    document.getElementById('loadtestRunning').style.display = 'none';
+                    showLoadTestResult(state.result);
+                } else {
+                    document.getElementById('loadtestConfig').style.display = 'block';
+                    document.getElementById('loadtestRunning').style.display = 'none';
+                    document.getElementById('loadtestResult').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+
+        function showLoadTestResult(result) {
+            const statusClass = result.status === 'PASSED' ? 'passed' : 'failed';
+            const statusIcon = result.status === 'PASSED' ? '✅' : '❌';
+            
+            const html = `
+                <div class="loadtest-result ${statusClass}">
+                    <div class="loadtest-result-status ${statusClass}">
+                        ${statusIcon} Test ${result.status}
+                    </div>
+                    <div class="loadtest-result-details">
+                        <div class="loadtest-result-item">
+                            <span>Eventi Target</span>
+                            <span>${result.target_events.toLocaleString()}</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Eventi Inviati</span>
+                            <span>${result.events_sent.toLocaleString()}</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Success Rate</span>
+                            <span>${result.success_rate.toFixed(1)}%</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Durata</span>
+                            <span>${result.duration_seconds.toFixed(1)}s</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Rate Medio</span>
+                            <span>${result.events_per_second.toFixed(1)}/s</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Rate/Minuto</span>
+                            <span>${result.events_per_minute.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Errori</span>
+                            <span>${result.errors}</span>
+                        </div>
+                        <div class="loadtest-result-item">
+                            <span>Inizio Test</span>
+                            <span>${formatTimestamp(result.start_time)}</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="loadtest-btn" style="width: 100%; margin-top: 20px;" onclick="resetLoadTest()">
+                    <span>🔄</span> Nuovo Test
+                </button>
+            `;
+            
+            document.getElementById('loadtestResult').innerHTML = html;
+            document.getElementById('loadtestResult').style.display = 'block';
+            document.getElementById('loadtestRunning').style.display = 'none';
+        }
+
+        function resetLoadTest() {
+            document.getElementById('loadtestConfig').style.display = 'block';
+            document.getElementById('loadtestRunning').style.display = 'none';
+            document.getElementById('loadtestResult').style.display = 'none';
+            document.getElementById('loadtestProgressBar').style.width = '0%';
+        }
+
+        // Close modal on outside click
+        document.getElementById('loadtestModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLoadTestModal();
+            }
+        });
     </script>
 </body>
 </html>

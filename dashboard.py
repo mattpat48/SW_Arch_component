@@ -1,6 +1,7 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
 from datetime import datetime
+import load_test
 
 app = Flask(__name__)
 DB_NAME = "city_data.db"
@@ -118,6 +119,60 @@ def api_overview():
         'total_records': counts,
         'last_update': datetime.now().isoformat()
     })
+
+# ==========================
+# LOAD TEST ENDPOINTS
+# ==========================
+@app.route('/api/loadtest/start', methods=['POST'])
+def start_loadtest():
+    """Avvia il load test"""
+    if load_test.is_test_running():
+        return jsonify({
+            'success': False,
+            'message': 'Un load test è già in esecuzione'
+        }), 400
+    
+    # Parametri opzionali dal body
+    data = request.get_json() or {}
+    target_events = data.get('target_events', 1000)
+    duration_seconds = data.get('duration_seconds', 60)  # 1 minuto
+    
+    success = load_test.start_load_test_async(target_events, duration_seconds)
+    
+    if success:
+        return jsonify({
+            'success': True,
+            'message': f'Load test avviato: {target_events:,} eventi in {duration_seconds}s'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Impossibile avviare il load test'
+        }), 500
+
+
+@app.route('/api/loadtest/status')
+def loadtest_status():
+    """Ottieni lo stato corrente del load test"""
+    state = load_test.get_test_state()
+    return jsonify(state)
+
+
+@app.route('/api/loadtest/result')
+def loadtest_result():
+    """Ottieni il risultato dell'ultimo load test"""
+    state = load_test.get_test_state()
+    if state['result']:
+        return jsonify({
+            'has_result': True,
+            'result': state['result']
+        })
+    else:
+        return jsonify({
+            'has_result': False,
+            'message': 'Nessun risultato disponibile'
+        })
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
